@@ -279,7 +279,7 @@ matrix:
       install:
         - pip install conan conan-package-tools
       env:
-        - CONAN_GCC_VERSIONS=7
+        - CONAN_GCC_VERSIONS=8
         - CONAN_DOCKER_IMAGE=conanio/gcc8
       script:
         - python .conan/build.py
