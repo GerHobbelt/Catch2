@@ -52,6 +52,12 @@ class BuilderSettings(object):
         return os.getenv("CONAN_REFERENCE", "Catch2/{}@{}/stable".format(self._version, self.username))
 
     @property
+    def channel(self):
+        """ Default Conan package channel when not stable
+        """
+        return os.getenv("CONAN_CHANNEL", "testing")
+
+    @property
     def _version(self):
         """ Get version name from cmake file
         """
@@ -77,6 +83,7 @@ if __name__ == "__main__":
     settings = BuilderSettings()
     builder = ConanMultiPackager(
         reference=settings.reference,
+        channel=settings.channel,
         upload=settings.upload,
         upload_only_when_stable=settings.upload_only_when_stable,
         stable_branch_pattern=settings.stable_branch_pattern,
