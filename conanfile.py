@@ -10,8 +10,8 @@ class CatchConan(ConanFile):
     url = "https://github.com/catchorg/Catch2"
     license = "BSL-1.0"
     exports = "LICENSE.txt"
+    exports_sources = ("single_include/*", "CMakeLists.txt", "CMake/*", "contrib/*")
     generators = "cmake"
-    exports_sources = "single_include/*", "CMakeLists.txt", "CMake/catch2.pc.in"
 
     def package(self):
         cmake = CMake(self)
