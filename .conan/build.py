@@ -49,7 +49,7 @@ class BuilderSettings(object):
     def reference(self):
         """ Read project version from branch create Conan referece
         """
-        return os.getenv("CONAN_REFERENCE", "Catch2/{}@{}/stable".format(self._version, self.username))
+        return os.getenv("CONAN_REFERENCE", "Catch2/{}@{}/{}".format(self._version, self.username, self.channel))
 
     @property
     def channel(self):
