@@ -43,7 +43,7 @@ class BuilderSettings(object):
     def stable_branch_pattern(self):
         """ Only upload the package the branch name is like a tag
         """
-        return os.getenv("CONAN_STABLE_BRANCH_PATTERN", r"v?\d+\.\d+\.\d+-.*")
+        return os.getenv("CONAN_STABLE_BRANCH_PATTERN", r"v?\d+\.\d+\.\d+.*")
 
     @property
     def reference(self):
