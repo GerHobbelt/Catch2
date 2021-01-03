@@ -12,7 +12,6 @@
 #include <catch2/internal/catch_unique_ptr.hpp>
 
 #include <iosfwd>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -22,9 +21,8 @@ namespace Catch {
         template<typename T, typename ChildNodeT>
         struct Node {
             explicit Node( T const& _value ) : value( _value ) {}
-            virtual ~Node() = default;
 
-            using ChildNodes = std::vector<std::shared_ptr<ChildNodeT>>;
+            using ChildNodes = std::vector<Detail::unique_ptr<ChildNodeT>>;
             T value;
             ChildNodes children;
         };
@@ -36,10 +34,8 @@ namespace Catch {
             }
 
             SectionStats stats;
-            using ChildSections = std::vector<std::shared_ptr<SectionNode>>;
-            using Assertions = std::vector<AssertionStats>;
-            ChildSections childSections;
-            Assertions assertions;
+            std::vector<Detail::unique_ptr<SectionNode>> childSections;
+            std::vector<AssertionStats> assertions;
             std::string stdOut;
             std::string stdErr;
         };
@@ -67,20 +63,23 @@ namespace Catch {
         void testCaseEnded( TestCaseStats const& testCaseStats ) override;
         void testGroupEnded( TestGroupStats const& testGroupStats ) override;
         void testRunEnded( TestRunStats const& testRunStats ) override;
+        //! Customization point: called after last test finishes (testRunEnded has been handled)
         virtual void testRunEndedCumulative() = 0;
 
         void skipTest(TestCaseInfo const&) override {}
 
         IConfig const* m_config;
         std::ostream& stream;
-        std::vector<std::shared_ptr<TestCaseNode>> m_testCases;
-        std::vector<std::shared_ptr<TestGroupNode>> m_testGroups;
+        // Note: We rely on pointer identity being stable, which is why
+        //       which is why we store around pointers rather than values.
+        std::vector<Detail::unique_ptr<TestCaseNode>> m_testCases;
+        std::vector<Detail::unique_ptr<TestGroupNode>> m_testGroups;
 
-        std::vector<Detail::unique_ptr<TestRunNode>> m_testRuns;
+        std::vector<TestRunNode> m_testRuns;
 
-        std::shared_ptr<SectionNode> m_rootSection;
+        Detail::unique_ptr<SectionNode> m_rootSection;
         SectionNode* m_deepestSection = nullptr;
-        std::vector<std::shared_ptr<SectionNode>> m_sectionStack;
+        std::vector<SectionNode*> m_sectionStack;
     };
 
 } // end namespace Catch

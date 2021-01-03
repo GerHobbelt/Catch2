@@ -44,13 +44,17 @@ set(INTERNAL_HEADERS
     ${SOURCES_DIR}/catch_assertion_info.hpp
     ${SOURCES_DIR}/catch_assertion_result.hpp
     ${SOURCES_DIR}/internal/catch_test_macro_impl.hpp
+    ${SOURCES_DIR}/internal/catch_test_failure_exception.hpp
     ${SOURCES_DIR}/internal/catch_case_sensitive.hpp
     ${SOURCES_DIR}/internal/catch_clara.hpp
     ${SOURCES_DIR}/internal/catch_commandline.hpp
-    ${SOURCES_DIR}/internal/catch_common.hpp
+    ${SOURCES_DIR}/internal/catch_source_line_info.hpp
     ${SOURCES_DIR}/internal/catch_compiler_capabilities.hpp
     ${SOURCES_DIR}/catch_config.hpp
+    ${SOURCES_DIR}/internal/catch_config_android_logwrite.hpp
+    ${SOURCES_DIR}/internal/catch_config_counter.hpp
     ${SOURCES_DIR}/internal/catch_config_uncaught_exceptions.hpp
+    ${SOURCES_DIR}/internal/catch_config_wchar.hpp
     ${SOURCES_DIR}/internal/catch_console_colour.hpp
     ${SOURCES_DIR}/internal/catch_context.hpp
     ${SOURCES_DIR}/internal/catch_debug_console.hpp
@@ -85,8 +89,9 @@ set(INTERNAL_HEADERS
     ${SOURCES_DIR}/matchers/catch_matchers_container_properties.hpp
     ${SOURCES_DIR}/matchers/catch_matchers_contains.hpp
     ${SOURCES_DIR}/matchers/catch_matchers_exception.hpp
-    ${SOURCES_DIR}/matchers/catch_matchers_floating.hpp
+    ${SOURCES_DIR}/matchers/catch_matchers_floating_point.hpp
     ${SOURCES_DIR}/matchers/catch_matchers_predicate.hpp
+    ${SOURCES_DIR}/matchers/catch_matchers_quantifiers.hpp
     ${SOURCES_DIR}/matchers/catch_matchers_string.hpp
     ${SOURCES_DIR}/matchers/catch_matchers_templated.hpp
     ${SOURCES_DIR}/matchers/catch_matchers_vector.hpp
@@ -109,6 +114,7 @@ set(INTERNAL_HEADERS
     ${SOURCES_DIR}/internal/catch_singletons.hpp
     ${SOURCES_DIR}/internal/catch_startup_exception_registry.hpp
     ${SOURCES_DIR}/internal/catch_stream.hpp
+    ${SOURCES_DIR}/internal/catch_stream_end_stop.hpp
     ${SOURCES_DIR}/internal/catch_string_manip.hpp
     ${SOURCES_DIR}/internal/catch_stringref.hpp
     ${SOURCES_DIR}/catch_tag_alias.hpp
@@ -144,7 +150,7 @@ set(IMPL_SOURCES
     ${SOURCES_DIR}/matchers/internal/catch_matchers_combined_tu.cpp
     ${SOURCES_DIR}/internal/catch_clara.cpp
     ${SOURCES_DIR}/internal/catch_commandline.cpp
-    ${SOURCES_DIR}/internal/catch_common.cpp
+    ${SOURCES_DIR}/internal/catch_source_line_info.cpp
     ${SOURCES_DIR}/catch_config.cpp
     ${SOURCES_DIR}/internal/catch_console_colour.cpp
     ${SOURCES_DIR}/internal/catch_context.cpp
@@ -158,7 +164,7 @@ set(IMPL_SOURCES
     ${SOURCES_DIR}/interfaces/catch_interfaces_combined_tu.cpp
     ${SOURCES_DIR}/interfaces/catch_interfaces_reporter.cpp
     ${SOURCES_DIR}/internal/catch_list.cpp
-    ${SOURCES_DIR}/matchers/catch_matchers_floating.cpp
+    ${SOURCES_DIR}/matchers/catch_matchers_floating_point.cpp
     ${SOURCES_DIR}/matchers/catch_matchers_string.cpp
     ${SOURCES_DIR}/matchers/catch_matchers_templated.cpp
     ${SOURCES_DIR}/catch_message.cpp
