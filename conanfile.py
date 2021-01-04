@@ -1,15 +1,19 @@
 from conans import ConanFile, CMake, tools
 
 class Catch2Conan(ConanFile):
-    description = "A modern, C++-native, framework for unit-tests, TDD and BDD"
-    exports = "LICENSE.txt"
-    exports_sources = "CMakeLists.txt", "CMake/*", "extras/*", "src/*"
-    generators = "cmake"
-    license = "BSL-1.0"
     name = "catch2"
-    settings = "os", "compiler", "build_type", "arch"
-    topics = ("conan", "catch2", "unit-test", "tdd", "bdd")
+    description = "A modern, C++-native, framework for unit-tests, TDD and BDD"
+    homepage = "https://tnt-coders.github.io/"
     url = "https://github.com/tnt-coders/Catch2.git"
+    license = "BSL-1.0"
+    
+    topics = ("conan", "catch2", "unit-test", "tdd", "bdd")
+
+    settings = ("os", "compiler", "build_type", "arch")
+
+    generators = ("cmake")
+
+    exports_sources = ("CMakeLists.txt", "CMake/*", "extras/*", "src/*")
 
     def _configure_cmake(self):
         cmake = CMake(self)
