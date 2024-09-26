@@ -1,284 +1,201 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 
-project(CatchSelfTest)
-
-set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-
-# define some folders
-set(CATCH_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(SELF_TEST_DIR ${CATCH_DIR}/projects/SelfTest)
-set(BENCHMARK_DIR ${CATCH_DIR}/projects/Benchmark)
-set(HEADER_DIR ${CATCH_DIR}/include)
-
-if(USE_CPP11)
-    ## We can't turn this on by default, since it breaks on travis
-    message(STATUS "Enabling C++11")
-    set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
-elseif(USE_CPP14)
-    message(STATUS "Enabling C++14")
-    set(CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS}")
+# detect if Catch is being bundled,
+# disable testsuite in that case
+if(NOT DEFINED PROJECT_NAME)
+  set(NOT_SUBPROJECT ON)
+else()
+  set(NOT_SUBPROJECT OFF)
 endif()
 
-if(USE_WMAIN)
+option(CATCH_INSTALL_DOCS "Install documentation alongside library" ON)
+option(CATCH_INSTALL_EXTRAS "Install extras (CMake scripts, debugger helpers) alongside library" ON)
+option(CATCH_DEVELOPMENT_BUILD "Build tests, enable warnings, enable Werror, etc" OFF)
+option(CATCH_ENABLE_REPRODUCIBLE_BUILD "Add compiler flags for improving build reproducibility" ON)
+
+include(CMakeDependentOption)
+cmake_dependent_option(CATCH_BUILD_TESTING "Build the SelfTest project" ON "CATCH_DEVELOPMENT_BUILD" OFF)
+cmake_dependent_option(CATCH_BUILD_EXAMPLES "Build code examples" OFF "CATCH_DEVELOPMENT_BUILD" OFF)
+cmake_dependent_option(CATCH_BUILD_EXTRA_TESTS "Build extra tests" OFF "CATCH_DEVELOPMENT_BUILD" OFF)
+cmake_dependent_option(CATCH_BUILD_FUZZERS "Build fuzzers" OFF "CATCH_DEVELOPMENT_BUILD" OFF)
+cmake_dependent_option(CATCH_ENABLE_COVERAGE "Generate coverage for codecov.io" OFF "CATCH_DEVELOPMENT_BUILD" OFF)
+cmake_dependent_option(CATCH_ENABLE_WERROR "Enables Werror during build" ON "CATCH_DEVELOPMENT_BUILD" OFF)
+cmake_dependent_option(CATCH_BUILD_SURROGATES "Enable generating and building surrogate TUs for the main headers" OFF "CATCH_DEVELOPMENT_BUILD" OFF)
+cmake_dependent_option(CATCH_ENABLE_CONFIGURE_TESTS "Enable CMake configuration tests. WARNING: VERY EXPENSIVE" OFF "CATCH_DEVELOPMENT_BUILD" OFF)
+cmake_dependent_option(CATCH_ENABLE_CMAKE_HELPER_TESTS "Enable CMake helper tests. WARNING: VERY EXPENSIVE" OFF "CATCH_DEVELOPMENT_BUILD" OFF)
+
+
+# Catch2's build breaks if done in-tree. You probably should not build
+# things in tree anyway, but we can allow projects that include Catch2
+# as a subproject to build in-tree as long as it is not in our tree.
+if (CMAKE_BINARY_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    message(FATAL_ERROR "Building in-source is not supported! Create a build dir and remove ${CMAKE_SOURCE_DIR}/CMakeCache.txt")
+endif()
+
+project(Catch2
+  VERSION 3.7.1 # CML version placeholder, don't delete
+  LANGUAGES CXX
+  # HOMEPAGE_URL is not supported until CMake version 3.12, which
+  # we do not target yet.
+  # HOMEPAGE_URL "https://github.com/catchorg/Catch2"
+  DESCRIPTION "A modern, C++-native, unit test framework."
+)
+
+
+# Provide path for scripts. We first add path to the scripts we don't use,
+# but projects including us might, and set the path up to parent scope.
+# Then we also add path that we use to configure the project, but is of
+# no use to top level projects.
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/extras")
+if (NOT NOT_SUBPROJECT)
+  set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" PARENT_SCOPE)
+endif()
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/CMake")
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+include(CatchConfigOptions)
+if(CATCH_DEVELOPMENT_BUILD)
+  include(CTest)
+endif()
+
+# This variable is used in some subdirectories, so we need it here, rather
+# than later in the install block
+set(CATCH_CMAKE_CONFIG_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Catch2")
+
+# We have some Windows builds that test `wmain` entry point,
+# and we need this change to be present in all binaries that
+# are built during these tests, so this is required here, before
+# the subdirectories are added.
+if(CATCH_TEST_USE_WMAIN)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /ENTRY:wmainCRTStartup")
 endif()
 
-#checks that the given hard-coded list contains all headers + sources in the given folder
-function(CheckFileList LIST_VAR FOLDER)
-  set(MESSAGE " should be added to the variable ${LIST_VAR}")
-  set(MESSAGE "${MESSAGE} in ${CMAKE_CURRENT_LIST_FILE}\n")
-  file(GLOB GLOBBED_LIST "${FOLDER}/*.cpp"
-                         "${FOLDER}/*.hpp"
-                         "${FOLDER}/*.h")
-  list(REMOVE_ITEM GLOBBED_LIST ${${LIST_VAR}})
-  foreach(EXTRA_ITEM ${GLOBBED_LIST})
-    string(REPLACE "${CATCH_DIR}/" "" RELATIVE_FILE_NAME "${EXTRA_ITEM}")
-    message(AUTHOR_WARNING "The file \"${RELATIVE_FILE_NAME}\"${MESSAGE}")
-  endforeach()
-endfunction()
 
-function(CheckFileListRec LIST_VAR FOLDER)
-  set(MESSAGE " should be added to the variable ${LIST_VAR}")
-  set(MESSAGE "${MESSAGE} in ${CMAKE_CURRENT_LIST_FILE}\n")
-  file(GLOB_RECURSE GLOBBED_LIST "${FOLDER}/*.cpp"
-                                 "${FOLDER}/*.hpp"
-                                 "${FOLDER}/*.h")
-  list(REMOVE_ITEM GLOBBED_LIST ${${LIST_VAR}})
-  foreach(EXTRA_ITEM ${GLOBBED_LIST})
-    string(REPLACE "${CATCH_DIR}/" "" RELATIVE_FILE_NAME "${EXTRA_ITEM}")
-    message(AUTHOR_WARNING "The file \"${RELATIVE_FILE_NAME}\"${MESSAGE}")
-  endforeach()
-endfunction()
+# Basic paths
+set(CATCH_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(SOURCES_DIR ${CATCH_DIR}/src/catch2)
+set(SELF_TEST_DIR ${CATCH_DIR}/tests/SelfTest)
 
-# define the sources of the self test
-# Please keep these ordered alphabetically
-set(TEST_SOURCES
-        ${SELF_TEST_DIR}/ApproxTests.cpp
-        ${SELF_TEST_DIR}/BDDTests.cpp
-        ${SELF_TEST_DIR}/ClassTests.cpp
-        ${SELF_TEST_DIR}/CmdLineTests.cpp
-        ${SELF_TEST_DIR}/CompilationTests.cpp
-        ${SELF_TEST_DIR}/ConditionTests.cpp
-        ${SELF_TEST_DIR}/DecompositionTests.cpp
-        ${SELF_TEST_DIR}/EnumToString.cpp
-        ${SELF_TEST_DIR}/ExceptionTests.cpp
-        ${SELF_TEST_DIR}/GeneratorTests.cpp
-        ${SELF_TEST_DIR}/MessageTests.cpp
-        ${SELF_TEST_DIR}/MiscTests.cpp
-        ${SELF_TEST_DIR}/PartTrackerTests.cpp
-        ${SELF_TEST_DIR}/TagAliasTests.cpp
-        ${SELF_TEST_DIR}/TestMain.cpp
-        ${SELF_TEST_DIR}/ToStringGeneralTests.cpp
-        ${SELF_TEST_DIR}/ToStringPair.cpp
-        ${SELF_TEST_DIR}/ToStringTuple.cpp
-        ${SELF_TEST_DIR}/ToStringVector.cpp
-        ${SELF_TEST_DIR}/ToStringWhich.cpp
-        ${SELF_TEST_DIR}/TrickyTests.cpp
-        ${SELF_TEST_DIR}/VariadicMacrosTests.cpp
-        ${SELF_TEST_DIR}/MatchersTests.cpp
-        )
-CheckFileList(TEST_SOURCES ${SELF_TEST_DIR})
+# We need to bring-in the variables defined there to this scope
+add_subdirectory(src)
 
-# A set of impl files that just #include a single header
-# Please keep these ordered alphabetically
-set(IMPL_SOURCES
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_common.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_console_colour.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_debugger.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_interfaces_capture.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_interfaces_config.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_interfaces_exception.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_interfaces_generators.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_interfaces_registry_hub.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_interfaces_reporter.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_interfaces_runner.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_interfaces_testcase.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_message.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_option.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_ptr.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_stream.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_streambuf.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_test_spec.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_xmlwriter.cpp
-        ${SELF_TEST_DIR}/SurrogateCpps/catch_test_case_tracker.cpp
-        )
-CheckFileList(IMPL_SOURCES ${SELF_TEST_DIR}/SurrogateCpps)
-
-
-# Please keep these ordered alphabetically
-set(TOP_LEVEL_HEADERS
-        ${HEADER_DIR}/catch.hpp
-        ${HEADER_DIR}/catch_session.hpp
-        ${HEADER_DIR}/catch_with_main.hpp
-        )
-CheckFileList(TOP_LEVEL_HEADERS ${HEADER_DIR})
-
-# Please keep these ordered alphabetically
-set(EXTERNAL_HEADERS
-        ${HEADER_DIR}/external/clara.h
-        ${HEADER_DIR}/external/tbc_text_format.h
-        )
-CheckFileList(EXTERNAL_HEADERS ${HEADER_DIR}/external)
-
-
-# Please keep these ordered alphabetically
-set(INTERNAL_HEADERS
-        ${HEADER_DIR}/internal/catch_approx.hpp
-        ${HEADER_DIR}/internal/catch_assertionresult.h
-        ${HEADER_DIR}/internal/catch_assertionresult.hpp
-        ${HEADER_DIR}/internal/catch_capture.hpp
-        ${HEADER_DIR}/internal/catch_clara.h
-        ${HEADER_DIR}/internal/catch_commandline.hpp
-        ${HEADER_DIR}/internal/catch_common.h
-        ${HEADER_DIR}/internal/catch_common.hpp
-        ${HEADER_DIR}/internal/catch_compiler_capabilities.h
-        ${HEADER_DIR}/internal/catch_config.hpp
-        ${HEADER_DIR}/internal/catch_console_colour.hpp
-        ${HEADER_DIR}/internal/catch_console_colour_impl.hpp
-        ${HEADER_DIR}/internal/catch_context.h
-        ${HEADER_DIR}/internal/catch_context_impl.hpp
-        ${HEADER_DIR}/internal/catch_debugger.h
-        ${HEADER_DIR}/internal/catch_debugger.hpp
-        ${HEADER_DIR}/internal/catch_default_main.hpp
-        ${HEADER_DIR}/internal/catch_errno_guard.hpp
-        ${HEADER_DIR}/internal/catch_evaluate.hpp
-        ${HEADER_DIR}/internal/catch_exception_translator_registry.hpp
-        ${HEADER_DIR}/internal/catch_expression_lhs.hpp
-        ${HEADER_DIR}/internal/catch_fatal_condition.hpp
-        ${HEADER_DIR}/internal/catch_generators.hpp
-        ${HEADER_DIR}/internal/catch_generators_impl.hpp
-        ${HEADER_DIR}/internal/catch_impl.hpp
-        ${HEADER_DIR}/internal/catch_interfaces_capture.h
-        ${HEADER_DIR}/internal/catch_interfaces_config.h
-        ${HEADER_DIR}/internal/catch_interfaces_exception.h
-        ${HEADER_DIR}/internal/catch_interfaces_generators.h
-        ${HEADER_DIR}/internal/catch_interfaces_registry_hub.h
-        ${HEADER_DIR}/internal/catch_interfaces_reporter.h
-        ${HEADER_DIR}/internal/catch_interfaces_runner.h
-        ${HEADER_DIR}/internal/catch_interfaces_tag_alias_registry.h
-        ${HEADER_DIR}/internal/catch_interfaces_testcase.h
-        ${HEADER_DIR}/internal/catch_legacy_reporter_adapter.h
-        ${HEADER_DIR}/internal/catch_legacy_reporter_adapter.hpp
-        ${HEADER_DIR}/internal/catch_list.hpp
-        ${HEADER_DIR}/internal/catch_matchers.hpp
-        ${HEADER_DIR}/internal/catch_matchers_string.h
-        ${HEADER_DIR}/internal/catch_matchers_string.hpp
-        ${HEADER_DIR}/internal/catch_matchers_vector.h
-        ${HEADER_DIR}/internal/catch_message.h
-        ${HEADER_DIR}/internal/catch_message.hpp
-        ${HEADER_DIR}/internal/catch_notimplemented_exception.h
-        ${HEADER_DIR}/internal/catch_notimplemented_exception.hpp
-        ${HEADER_DIR}/internal/catch_objc.hpp
-        ${HEADER_DIR}/internal/catch_objc_arc.hpp
-        ${HEADER_DIR}/internal/catch_option.hpp
-        ${HEADER_DIR}/internal/catch_platform.h
-        ${HEADER_DIR}/internal/catch_ptr.hpp
-        ${HEADER_DIR}/internal/catch_reenable_warnings.h
-        ${HEADER_DIR}/internal/catch_registry_hub.hpp
-        ${HEADER_DIR}/internal/catch_reporter_registrars.hpp
-        ${HEADER_DIR}/internal/catch_reporter_registry.hpp
-        ${HEADER_DIR}/internal/catch_result_builder.h
-        ${HEADER_DIR}/internal/catch_result_builder.hpp
-        ${HEADER_DIR}/internal/catch_result_type.h
-        ${HEADER_DIR}/internal/catch_run_context.hpp
-        ${HEADER_DIR}/internal/catch_section.h
-        ${HEADER_DIR}/internal/catch_section.hpp
-        ${HEADER_DIR}/internal/catch_section_info.h
-        ${HEADER_DIR}/internal/catch_section_info.hpp
-        ${HEADER_DIR}/internal/catch_stream.h
-        ${HEADER_DIR}/internal/catch_stream.hpp
-        ${HEADER_DIR}/internal/catch_streambuf.h
-        ${HEADER_DIR}/internal/catch_suppress_warnings.h
-        ${HEADER_DIR}/internal/catch_tag_alias.h
-        ${HEADER_DIR}/internal/catch_tag_alias_registry.h
-        ${HEADER_DIR}/internal/catch_tag_alias_registry.hpp
-        ${HEADER_DIR}/internal/catch_test_case_info.h
-        ${HEADER_DIR}/internal/catch_test_case_info.hpp
-        ${HEADER_DIR}/internal/catch_test_case_registry_impl.hpp
-        ${HEADER_DIR}/internal/catch_test_case_tracker.hpp
-        ${HEADER_DIR}/internal/catch_test_registry.hpp
-        ${HEADER_DIR}/internal/catch_test_spec.hpp
-        ${HEADER_DIR}/internal/catch_test_spec_parser.hpp
-        ${HEADER_DIR}/internal/catch_text.h
-        ${HEADER_DIR}/internal/catch_timer.h
-        ${HEADER_DIR}/internal/catch_timer.hpp
-        ${HEADER_DIR}/internal/catch_tostring.h
-        ${HEADER_DIR}/internal/catch_tostring.hpp
-        ${HEADER_DIR}/internal/catch_totals.hpp
-        ${HEADER_DIR}/internal/catch_type_traits.hpp
-        ${HEADER_DIR}/internal/catch_version.h
-        ${HEADER_DIR}/internal/catch_version.hpp
-        ${HEADER_DIR}/internal/catch_wildcard_pattern.hpp
-        ${HEADER_DIR}/internal/catch_windows_h_proxy.h
-        ${HEADER_DIR}/internal/catch_xmlwriter.hpp
-        )
-CheckFileList(INTERNAL_HEADERS ${HEADER_DIR}/internal)
-
-# Please keep these ordered alphabetically
-set(REPORTER_HEADERS
-        ${HEADER_DIR}/reporters/catch_reporter_automake.hpp
-        ${HEADER_DIR}/reporters/catch_reporter_bases.hpp
-        ${HEADER_DIR}/reporters/catch_reporter_compact.hpp
-        ${HEADER_DIR}/reporters/catch_reporter_console.hpp
-        ${HEADER_DIR}/reporters/catch_reporter_junit.hpp
-        ${HEADER_DIR}/reporters/catch_reporter_multi.hpp
-        ${HEADER_DIR}/reporters/catch_reporter_tap.hpp
-        ${HEADER_DIR}/reporters/catch_reporter_teamcity.hpp
-        ${HEADER_DIR}/reporters/catch_reporter_xml.hpp
-        )
-CheckFileList(REPORTER_HEADERS ${HEADER_DIR}/reporters)
-
-# Specify the headers, too, so CLion recognises them as project files
-set(HEADERS
-        ${TOP_LEVEL_HEADERS}
-        ${EXTERNAL_HEADERS}
-        ${INTERNAL_HEADERS}
-        ${REPORTER_HEADERS}
-        )
-
-
-set(BENCH_SOURCES
-        ${BENCHMARK_DIR}/BenchMain.cpp
-        ${BENCHMARK_DIR}/StringificationBench.cpp
-        )
-CheckFileList(BENCH_SOURCES ${BENCHMARK_DIR})
-
-# Provide some groupings for IDEs
-SOURCE_GROUP("Tests" FILES ${TEST_SOURCES})
-SOURCE_GROUP("Surrogates" FILES ${IMPL_SOURCES})
-SOURCE_GROUP("Benchmarks" FILES ${BENCH_SOURCES})
-
-# configure the executable
-include_directories(${HEADER_DIR})
-
-# Projects consuming Catch via ExternalProject_Add might want to use install step
-# without building all of our selftests.
-if (NOT NO_SELFTEST)
-    add_executable(SelfTest ${TEST_SOURCES} ${IMPL_SOURCES} ${HEADERS})
-    add_executable(Benchmark ${BENCH_SOURCES} ${HEADERS})
-
-    # Add desired warnings
-    if ( CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang|GNU" )
-        target_compile_options( SelfTest PRIVATE -Wall -Wextra )
-        target_compile_options( Benchmark PRIVATE -Wall -Wextra )
+# Build tests only if requested
+if (BUILD_TESTING AND CATCH_BUILD_TESTING AND NOT_SUBPROJECT)
+    find_package(PythonInterp 3 REQUIRED)
+    if (NOT PYTHONINTERP_FOUND)
+        message(FATAL_ERROR "Python not found, but required for tests")
     endif()
-    if ( CMAKE_CXX_COMPILER_ID MATCHES "MSVC" )
-        target_compile_options( SelfTest PRIVATE /W4 /w44265 /WX )
-        target_compile_options( Benchmark PRIVATE /W4 )
+    add_subdirectory(tests)
+endif()
+
+if(CATCH_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+
+if(CATCH_BUILD_EXTRA_TESTS)
+    add_subdirectory(tests/ExtraTests)
+endif()
+
+if(CATCH_BUILD_FUZZERS)
+    add_subdirectory(fuzzing)
+endif()
+
+if (CATCH_DEVELOPMENT_BUILD)
+    add_warnings_to_targets("${CATCH_WARNING_TARGETS}")
+endif()
+
+# Only perform the installation steps when Catch is not being used as
+# a subproject via `add_subdirectory`, or the destinations will break,
+# see https://github.com/catchorg/Catch2/issues/1373
+if (NOT_SUBPROJECT)
+    configure_package_config_file(
+        ${CMAKE_CURRENT_LIST_DIR}/CMake/Catch2Config.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/Catch2Config.cmake
+        INSTALL_DESTINATION
+          ${CATCH_CMAKE_CONFIG_DESTINATION}
+    )
+
+    write_basic_package_version_file(
+      "${CMAKE_CURRENT_BINARY_DIR}/Catch2ConfigVersion.cmake"
+      COMPATIBILITY
+        SameMajorVersion
+    )
+
+    install(
+      FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/Catch2Config.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/Catch2ConfigVersion.cmake"
+      DESTINATION
+        ${CATCH_CMAKE_CONFIG_DESTINATION}
+    )
+
+    # Install documentation
+    if(CATCH_INSTALL_DOCS)
+      install(
+        DIRECTORY
+          docs/
+        DESTINATION
+          "${CMAKE_INSTALL_DOCDIR}"
+        PATTERN "doxygen" EXCLUDE
+      )
     endif()
 
+    if(CATCH_INSTALL_EXTRAS)
+        # Install CMake scripts
+        install(
+          FILES
+            "extras/ParseAndAddCatchTests.cmake"
+            "extras/Catch.cmake"
+            "extras/CatchAddTests.cmake"
+            "extras/CatchShardTests.cmake"
+            "extras/CatchShardTestsImpl.cmake"
+          DESTINATION
+            ${CATCH_CMAKE_CONFIG_DESTINATION}
+        )
+    
+        # Install debugger helpers
+        install(
+          FILES
+            "extras/gdbinit"
+            "extras/lldbinit"
+          DESTINATION
+            ${CMAKE_INSTALL_DATAROOTDIR}/Catch2
+        )
+    endif()
 
-    # configure unit tests via CTest
-    enable_testing()
-    add_test(NAME RunTests COMMAND SelfTest)
+    ## Provide some pkg-config integration
+    set(PKGCONFIG_INSTALL_DIR
+        "${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig"
+        CACHE PATH "Path where catch2.pc is installed"
+    )
+    configure_file(
+      ${CMAKE_CURRENT_SOURCE_DIR}/CMake/catch2.pc.in
+      ${CMAKE_CURRENT_BINARY_DIR}/catch2.pc
+      @ONLY
+    )
+    configure_file(
+      ${CMAKE_CURRENT_SOURCE_DIR}/CMake/catch2-with-main.pc.in
+      ${CMAKE_CURRENT_BINARY_DIR}/catch2-with-main.pc
+      @ONLY
+    )
+    install(
+      FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/catch2.pc"
+        "${CMAKE_CURRENT_BINARY_DIR}/catch2-with-main.pc"
+      DESTINATION
+        ${PKGCONFIG_INSTALL_DIR}
+    )
 
-    add_test(NAME ListTests COMMAND SelfTest --list-tests)
-    set_tests_properties(ListTests PROPERTIES PASS_REGULAR_EXPRESSION "[0-9]+ test cases")
+    # CPack/CMake started taking the package version from project version 3.12
+    # So we need to set the version manually for older CMake versions
+    if(${CMAKE_VERSION} VERSION_LESS "3.12.0")
+        set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+    endif()
 
-    add_test(NAME ListTags COMMAND SelfTest --list-tags)
-    set_tests_properties(ListTags PROPERTIES PASS_REGULAR_EXPRESSION "[0-9]+ tags")
-
-endif() # !NO_SELFTEST
+    set(CPACK_PACKAGE_CONTACT "https://github.com/catchorg/Catch2/")
 
 
-install(DIRECTORY "single_include/" DESTINATION "include/catch")
+    include( CPack )
+
+endif()
